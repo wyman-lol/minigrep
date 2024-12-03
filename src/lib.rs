@@ -17,13 +17,13 @@ impl Config {
         let mut ignore_case: bool;
 
         match args.get(3) {
-            Some(agr) if agr == "0" => { ignore_case = false }
+            Some(arg) if arg == "0" => { ignore_case = false }
             Some(_) => { ignore_case = true }
             None => { ignore_case = false }
         };
         // Environment variable parameters take precedence.
         match env::var("IGNORE_CASE").ok() {
-            Some(agr) if agr == "0" => { ignore_case = false }
+            Some(arg) if arg == "0" => { ignore_case = false }
             Some(_) => { ignore_case = true }
             None => {},
         }
