@@ -1,6 +1,8 @@
 use std::env;
 use std::error::Error;
 use std::fs;
+use std::process;
+
 pub struct Config {
     pub query: String,
     pub file_path: String,
@@ -8,31 +10,79 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn build(args: &[String]) -> Result<Config, &'static str> {
-        if args.len() < 3 {
-            return Err("not enough arguments");
-        }
-        let query = args[1].clone();
-        let file_path = args[2].clone();
-        let mut ignore_case: bool;
+    pub fn build(mut args: impl Iterator<Item = String>) -> Result<Config, &'static str> {
+        // 当前二进制文件路径先消费掉
+        args.next();
 
-        match args.get(3) {
-            Some(arg) if arg == "0" => { ignore_case = false }
-            Some(_) => { ignore_case = true }
-            None => { ignore_case = false }
-        };
-        // Environment variable parameters take precedence.
-        match env::var("IGNORE_CASE").ok() {
-            Some(arg) if arg == "0" => { ignore_case = false }
-            Some(_) => { ignore_case = true }
-            None => {},
-        }
+        let (query, file_path, ignore_case) = Self::parse_arguments(args).unwrap_or_else(|err| {
+            eprintln!("Problem parsing arguments: {err}");
+            process::exit(1);
+        });
 
         Ok(Config {
             query,
             file_path,
             ignore_case,
         })
+    }
+    fn parse_arguments(
+        mut args: impl Iterator<Item = String>,
+    ) -> Result<(String, String, bool), &'static str> {
+        let mut query: String = String::new();
+        let mut file_path: String = String::new();
+        let mut ignore_case: bool = false;
+
+        match env::var("IGNORE_CASE").ok() {
+            None => {}
+            Some(arg) if arg == "0" => {
+                ignore_case = false;
+            }
+            Some(arg) if arg == "1" => {
+                ignore_case = true;
+            }
+            Some(_) => {
+                return Err(
+                    "Not support environment parse, -i or --ignore_case only support '0' or '1'!",
+                )
+            }
+        }
+
+        while let Some(arg) = args.next() {
+            match arg.as_str() {
+                "-q" | "--query" => {
+                    if let Some(q) = args.next() {
+                        query = q;
+                    } else {
+                        return Err("Didn't get a query string!");
+                    }
+                }
+                "-f" | "--file_path" => {
+                    if let Some(f) = args.next() {
+                        file_path = f;
+                    } else {
+                        return Err("Didn't get a file path!");
+                    }
+                }
+                "-i" | "--ignore_case" => {
+                    if let Some(i) = args.next() {
+                        // 命令行参数应该比环境变量参数优先才对
+                        match i.as_str() {
+                            "0" => {
+                                ignore_case = false;
+                            }
+                            "1" => {
+                                ignore_case = true;
+                            }
+                            _ => return Err(
+                                "Not support command parse, -i or --ignore_case only support '0' or '1'!",
+                            ),
+                        }
+                    }
+                }
+                _ => return Err("Illegal arguments!"),
+            }
+        }
+        Ok((query, file_path, ignore_case))
     }
 }
 
